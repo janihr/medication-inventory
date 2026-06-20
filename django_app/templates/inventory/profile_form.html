@@ -1,0 +1,129 @@
+<!-- File: profile_form.html -->
+{% extends "inventory/base.html" %}
+
+{% block title %}My Profile{% endblock %}
+
+{% block content %}
+<h1><i class="bi bi-person-circle"></i> My Profile</h1>
+<p class="text-muted">Your details will appear on exported order PDFs so suppliers know who is ordering.</p>
+<hr>
+
+<div class="row">
+    <div class="col-md-8 col-lg-6">
+        <form method="post" novalidate>
+            {% csrf_token %}
+            
+            <div class="card mb-4">
+                <div class="card-header"><i class="bi bi-person"></i> Personal / Organization</div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="{{ form.organization.id_for_label }}" class="form-label">
+                            {{ form.organization.label }}
+                        </label>
+                        {{ form.organization }}
+                        {% if form.organization.help_text %}
+                            <div class="form-text">{{ form.organization.help_text }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="mb-3">
+                        <label for="{{ form.name.id_for_label }}" class="form-label">
+                            {{ form.name.label }}
+                        </label>
+                        {{ form.name }}
+                    </div>
+                    <div class="mb-3">
+                        <label for="{{ form.customer_number.id_for_label }}" class="form-label">
+                            {{ form.customer_number.label }}
+                        </label>
+                        {{ form.customer_number }}
+                        {% if form.customer_number.help_text %}
+                            <div class="form-text">{{ form.customer_number.help_text }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header"><i class="bi bi-geo-alt"></i> Address</div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="{{ form.address_line1.id_for_label }}" class="form-label">
+                            {{ form.address_line1.label }}
+                        </label>
+                        {{ form.address_line1 }}
+                    </div>
+                    <div class="mb-3">
+                        <label for="{{ form.address_line2.id_for_label }}" class="form-label">
+                            {{ form.address_line2.label }}
+                        </label>
+                        {{ form.address_line2 }}
+                    </div>
+                    <div class="row">
+                        <div class="col-4 mb-3">
+                            <label for="{{ form.postal_code.id_for_label }}" class="form-label">
+                                {{ form.postal_code.label }}
+                            </label>
+                            {{ form.postal_code }}
+                        </div>
+                        <div class="col-8 mb-3">
+                            <label for="{{ form.city.id_for_label }}" class="form-label">
+                                {{ form.city.label }}
+                            </label>
+                            {{ form.city }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header"><i class="bi bi-telephone"></i> Contact</div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="{{ form.phone.id_for_label }}" class="form-label">
+                            {{ form.phone.label }}
+                        </label>
+                        {{ form.phone }}
+                    </div>
+                    <div class="mb-3">
+                        <label for="{{ form.email.id_for_label }}" class="form-label">
+                            {{ form.email.label }}
+                        </label>
+                        {{ form.email }}
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-check-lg"></i> Save Profile
+                </button>
+                <a href="{% url 'inventory:dashboard' %}" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Preview Card -->
+    <div class="col-md-4 col-lg-4">
+        <div class="card border-info">
+            <div class="card-header bg-info text-white">
+                <i class="bi bi-eye"></i> PDF Preview Info
+            </div>
+            <div class="card-body">
+                <p class="small text-muted">
+                    This information will appear in the "From" section of your exported order PDFs.
+                    Suppliers will see these details to identify who placed the order.
+                </p>
+                <hr>
+                <p class="small mb-1"><strong>Displayed on PDF:</strong></p>
+                <ul class="small text-muted">
+                    <li>Organization name</li>
+                    <li>Your name</li>
+                    <li>Full address</li>
+                    <li>Phone & email</li>
+                    <li>Customer number</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

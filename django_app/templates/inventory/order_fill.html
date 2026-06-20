@@ -1,0 +1,446 @@
+{% extends "inventory/base.html" %}
+
+{% block title %}Fill Order {{ order.order_id }}{% endblock %}
+
+{% block content %}
+<h1><i class="bi bi-pencil"></i> Fill Order: {{ order.order_id }}</h1>
+<p class="text-muted">Supplier: {{ order.supplier.name }}</p>
+<hr>
+
+<form method="post" novalidate id="order-fill-form">
+    {% csrf_token %}
+    {{ formset.management_form }}
+
+    <div class="formset-table-wrapper">
+        <table class="table table-bordered" id="formset-table">
+            <thead class="table-light">
+                <tr>
+                    <th>Medicine Item</th>
+                    <th style="width: 110px;">PZN</th>
+                    <th style="width: 100px;">Amount</th>
+                    <th>Note</th>
+                    <th style="width: 50px;"></th>
+                </tr>
+            </thead>
+            <tbody id="formset-body">
+                {% for form in formset %}
+                <tr class="formset-row" data-form-index="{{ forloop.counter0 }}">
+                    {{ form.id }}
+                    {{ form.DELETE }}
+                    <td class="medicine-cell">
+                        <div class="d-none">{{ form.medicine_item }}</div>
+                        <div class="autocomplete-wrapper">
+                            <input type="text"
+                                   class="form-control autocomplete-input"
+                                   placeholder="Type to search..."
+                                   autocomplete="off"
+                                   {% if form.instance.pk and form.instance.medicine_item %}
+                                   value="{{ form.instance.medicine_item.name }}"
+                                   {% endif %}>
+                            <div class="autocomplete-dropdown"></div>
+                        </div>
+                        {% if form.medicine_item.errors %}
+                            <div class="text-danger small">{{ form.medicine_item.errors }}</div>
+                        {% endif %}
+                    </td>
+                    <td class="align-middle">
+                        <span class="pzn-display text-muted">{% if form.instance.pk and form.instance.medicine_item and form.instance.medicine_item.pzn %}{{ form.instance.medicine_item.pzn }}{% endif %}</span>
+                    </td>
+                    <td>
+                        {{ form.amount }}
+                        {% if form.amount.errors %}
+                            <div class="text-danger small">{{ form.amount.errors }}</div>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {{ form.note }}
+                    </td>
+                    <td class="text-center align-middle">
+                        <button type="button" class="btn btn-sm btn-outline-danger row-delete-btn" title="Remove item">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Empty form template for JS cloning -->
+    <table class="d-none">
+        <tbody id="empty-form-template">
+            <tr class="formset-row">
+                {{ formset.empty_form.id }}
+                {{ formset.empty_form.DELETE }}
+                <td class="medicine-cell">
+                    <div class="d-none">{{ formset.empty_form.medicine_item }}</div>
+                    <div class="autocomplete-wrapper">
+                        <input type="text"
+                               class="form-control autocomplete-input"
+                               placeholder="Type to search..."
+                               autocomplete="off">
+                        <div class="autocomplete-dropdown"></div>
+                    </div>
+                </td>
+                <td class="align-middle">
+                    <span class="pzn-display text-muted"></span>
+                </td>
+                <td>{{ formset.empty_form.amount }}</td>
+                <td>{{ formset.empty_form.note }}</td>
+                <td class="text-center align-middle">
+                    <button type="button" class="btn btn-sm btn-outline-danger row-delete-btn" title="Remove item">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+
+    {% if formset.non_form_errors %}
+        <div class="alert alert-danger mt-3">
+            {% for error in formset.non_form_errors %}
+                <p class="mb-0">{{ error }}</p>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <div class="mt-3 form-button-panel">
+        <button type="submit" class="btn btn-primary">
+            <i class="bi bi-check-lg"></i> Save Items
+        </button>
+        <a href="{% url 'inventory:order_detail' order.pk %}" class="btn btn-secondary">Cancel</a>
+    </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+    var ALL_MEDICINES = JSON.parse('{{ medicine_items_json|escapejs }}');
+
+    var formsetBody = document.getElementById('formset-body');
+    var totalFormsInput = document.getElementById('id_items-TOTAL_FORMS');
+    var emptyFormTemplate = document.getElementById('empty-form-template');
+    var mainForm = document.getElementById('order-fill-form');
+
+    function getTotalForms() {
+        return parseInt(totalFormsInput.value);
+    }
+
+    function setTotalForms(val) {
+        totalFormsInput.value = val;
+    }
+
+    // === Get medicine IDs currently selected in visible (non-deleted) rows ===
+    function getSelectedMedicineIds() {
+        var ids = {};
+        var rows = formsetBody.querySelectorAll('.formset-row:not(.marked-for-deletion)');
+        rows.forEach(function(row) {
+            var select = row.querySelector('select[name$="-medicine_item"]');
+            if (select && select.value) {
+                ids[select.value] = true;
+            }
+        });
+        return ids;
+    }
+
+    // === Update PZN display for a row ===
+    function updatePznDisplay(row, medicineId) {
+        var pznSpan = row.querySelector('.pzn-display');
+        if (!pznSpan) return;
+
+        if (!medicineId) {
+            pznSpan.textContent = '';
+            return;
+        }
+
+        var medicine = ALL_MEDICINES.find(function(m) { return m.id === parseInt(medicineId); });
+        pznSpan.textContent = (medicine && medicine.pzn) ? medicine.pzn : '';
+    }
+
+    // === Delete row logic ===
+    function deleteRow(row) {
+        var idInput = row.querySelector('input[name$="-id"]');
+        var hasExistingPk = idInput && idInput.value;
+
+        if (hasExistingPk) {
+            // Existing saved item: mark for deletion via Django's DELETE field, hide row
+            var deleteInput = row.querySelector('input[name$="-DELETE"]');
+            if (deleteInput) {
+                deleteInput.value = 'on';
+            }
+            row.classList.add('marked-for-deletion');
+            row.style.display = 'none';
+        } else {
+            // New unsaved row: just remove from DOM
+            row.remove();
+        }
+
+        reindexForms();
+        ensureEmptyRow();
+    }
+
+    // === Autocomplete ===
+    function initAutocomplete(row) {
+        var input = row.querySelector('.autocomplete-input');
+        var dropdown = row.querySelector('.autocomplete-dropdown');
+        var select = row.querySelector('select[name$="-medicine_item"]');
+
+        if (!input || !dropdown || !select) return;
+
+        var activeIndex = -1;
+        var filteredItems = [];
+
+        function renderDropdown() {
+            dropdown.innerHTML = '';
+            activeIndex = -1;
+
+            if (filteredItems.length === 0) {
+                var noMatch = document.createElement('div');
+                noMatch.className = 'autocomplete-item text-muted';
+                noMatch.textContent = 'No matches found';
+                dropdown.appendChild(noMatch);
+                dropdown.classList.add('show');
+                return;
+            }
+
+            filteredItems.forEach(function(item, idx) {
+                var div = document.createElement('div');
+                div.className = 'autocomplete-item';
+                var label = item.name;
+                if (item.pzn) label += ' (PZN: ' + item.pzn + ')';
+                if (item.package_size) label += ' \u2014 ' + item.package_size;
+                div.textContent = label;
+                div.setAttribute('data-index', idx);
+
+                div.addEventListener('mousedown', function(e) {
+                    e.preventDefault();
+                });
+                div.addEventListener('click', function() {
+                    pickItem(item);
+                });
+
+                dropdown.appendChild(div);
+            });
+
+            dropdown.classList.add('show');
+        }
+
+        function hideDropdown() {
+            dropdown.classList.remove('show');
+            dropdown.innerHTML = '';
+            activeIndex = -1;
+            filteredItems = [];
+        }
+
+        function pickItem(item) {
+            input.value = item.name;
+            select.value = String(item.id);
+            hideDropdown();
+            updatePznDisplay(row, item.id);
+            select.dispatchEvent(new Event('change'));
+        }
+
+        function doFilter(query) {
+            var selectedIds = getSelectedMedicineIds();
+            var currentVal = select.value || null;
+            var lowerQuery = query.toLowerCase();
+
+            filteredItems = ALL_MEDICINES.filter(function(item) {
+                if (String(item.id) !== currentVal && selectedIds[String(item.id)]) {
+                    return false;
+                }
+                if (query === '') return true;
+                if (item.name.toLowerCase().indexOf(lowerQuery) !== -1) return true;
+                if (item.pzn && item.pzn.indexOf(query) !== -1) return true;
+                return false;
+            });
+
+            renderDropdown();
+        }
+
+        input.addEventListener('input', function() {
+            var query = this.value.trim();
+            if (query === '' && !select.value) {
+                doFilter('');
+            } else if (query === '') {
+                select.value = '';
+                updatePznDisplay(row, null);
+                select.dispatchEvent(new Event('change'));
+                hideDropdown();
+            } else {
+                if (select.value) {
+                    var current = ALL_MEDICINES.find(function(m) { return m.id === parseInt(select.value); });
+                    if (current && current.name !== query) {
+                        select.value = '';
+                        updatePznDisplay(row, null);
+                    }
+                }
+                doFilter(query);
+            }
+        });
+
+        input.addEventListener('focus', function() {
+            var query = this.value.trim();
+            doFilter(query);
+        });
+
+        input.addEventListener('blur', function() {
+            setTimeout(function() {
+                hideDropdown();
+                if (select.value) {
+                    var med = ALL_MEDICINES.find(function(m) { return m.id === parseInt(select.value); });
+                    if (med) {
+                        input.value = med.name;
+                        updatePznDisplay(row, med.id);
+                    }
+                } else {
+                    var typed = input.value.trim().toLowerCase();
+                    if (typed) {
+                        var selectedIds = getSelectedMedicineIds();
+                        var match = ALL_MEDICINES.find(function(m) {
+                            return m.name.toLowerCase() === typed && !selectedIds[String(m.id)];
+                        });
+                        if (match) {
+                            pickItem(match);
+                        } else {
+                            input.value = '';
+                            select.value = '';
+                            updatePznDisplay(row, null);
+                        }
+                    }
+                }
+            }, 150);
+        });
+
+        input.addEventListener('keydown', function(e) {
+            var items = dropdown.querySelectorAll('.autocomplete-item[data-index]');
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                activeIndex = Math.min(activeIndex + 1, items.length - 1);
+                highlightItem(items);
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                activeIndex = Math.max(activeIndex - 1, 0);
+                highlightItem(items);
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (activeIndex >= 0 && activeIndex < filteredItems.length) {
+                    pickItem(filteredItems[activeIndex]);
+                }
+            } else if (e.key === 'Escape') {
+                hideDropdown();
+                input.blur();
+            }
+        });
+
+        function highlightItem(items) {
+            items.forEach(function(el, idx) {
+                if (idx === activeIndex) {
+                    el.classList.add('active');
+                    el.scrollIntoView({block: 'nearest'});
+                } else {
+                    el.classList.remove('active');
+                }
+            });
+        }
+    }
+
+    // === Re-index all forms ===
+    function reindexForms() {
+        var allRows = formsetBody.querySelectorAll('.formset-row');
+        var index = 0;
+        allRows.forEach(function(row) {
+            row.querySelectorAll('input, select, textarea').forEach(function(el) {
+                if (el.name) {
+                    el.name = el.name.replace(/items-\d+/, 'items-' + index);
+                }
+                if (el.id) {
+                    el.id = el.id.replace(/id_items-\d+/, 'id_items-' + index);
+                }
+            });
+            row.setAttribute('data-form-index', index);
+            index++;
+        });
+        setTotalForms(index);
+    }
+
+    // === Ensure empty row at the end ===
+    function ensureEmptyRow() {
+        var visibleRows = formsetBody.querySelectorAll('.formset-row:not(.marked-for-deletion)');
+        if (visibleRows.length === 0) {
+            addNewRow();
+            return;
+        }
+        var lastRow = visibleRows[visibleRows.length - 1];
+        var lastSelect = lastRow.querySelector('select[name$="-medicine_item"]');
+        if (lastSelect && lastSelect.value) {
+            addNewRow();
+        }
+    }
+
+    // === Add new row ===
+    function addNewRow() {
+        var totalForms = getTotalForms();
+        var templateRow = emptyFormTemplate.querySelector('tr').cloneNode(true);
+
+        templateRow.setAttribute('data-form-index', totalForms);
+        templateRow.innerHTML = templateRow.innerHTML.replace(/__prefix__/g, totalForms);
+
+        formsetBody.appendChild(templateRow);
+        setTotalForms(totalForms + 1);
+
+        attachRowListeners(templateRow);
+    }
+
+    // === Attach listeners to a row ===
+    function attachRowListeners(row) {
+        var select = row.querySelector('select[name$="-medicine_item"]');
+        if (select) {
+            select.addEventListener('change', function() {
+                ensureEmptyRow();
+            });
+        }
+
+        var deleteBtn = row.querySelector('.row-delete-btn');
+        if (deleteBtn) {
+            deleteBtn.addEventListener('click', function() {
+                deleteRow(row);
+            });
+        }
+
+        initAutocomplete(row);
+    }
+
+    // === Initialize existing rows ===
+    formsetBody.querySelectorAll('.formset-row').forEach(function(row) {
+        attachRowListeners(row);
+    });
+
+    // === On submit: clean up empty rows ===
+    mainForm.addEventListener('submit', function() {
+        var allRows = formsetBody.querySelectorAll('.formset-row:not(.marked-for-deletion)');
+        allRows.forEach(function(row) {
+            var select = row.querySelector('select[name$="-medicine_item"]');
+            var idInput = row.querySelector('input[name$="-id"]');
+            var hasExistingPk = idInput && idInput.value;
+
+            if (select && !select.value && !hasExistingPk) {
+                row.remove();
+            }
+        });
+        reindexForms();
+    });
+
+    // === Close dropdowns on outside click ===
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('.autocomplete-wrapper')) {
+            document.querySelectorAll('.autocomplete-dropdown').forEach(function(dd) {
+                dd.classList.remove('show');
+                dd.innerHTML = '';
+            });
+        }
+    });
+})();
+</script>
+{% endblock %}
