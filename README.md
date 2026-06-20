@@ -134,3 +134,11 @@ curl http://localhost:8000/health/
 ```
 
 Returns `{"status": "ok"}`.
+
+---
+
+## Disclaimer
+
+This software is provided for organizational purposes only (inventory tracking, order management). It is **not** a medical device and must not be used for clinical decision-making.
+
+Use at your own risk. The authors accept no liability for loss of data, incorrect orders, or any other damages arising from the use of this software. Always verify orders independently before submission to suppliers.
